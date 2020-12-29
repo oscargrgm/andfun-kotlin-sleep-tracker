@@ -17,39 +17,117 @@
 package com.example.android.trackmysleepquality.sleeptracker
 
 import android.app.Application
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.*
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
+import com.example.android.trackmysleepquality.database.SleepNight
+import com.example.android.trackmysleepquality.formatNights
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel for SleepTrackerFragment.
  */
 class SleepTrackerViewModel(
-        val database: SleepDatabaseDao,
-        application: Application) : AndroidViewModel(application) {
+    val database: SleepDatabaseDao,
+    application: Application
+) : AndroidViewModel(application) {
 
-    //TODO (01) Declare Job() and cancel jobs in onCleared().
+    /**
+     * Creating own scope is no longer recommended by Google. The recommended way is to use a
+     * lifecycle-aware coroutine scope ViewModelScope provided by the Architecture components.
+     */
 
-    //TODO (02) Define uiScope for coroutines.
+    // TODO (01) Declare Job() and cancel jobs in onCleared().
 
-    //TODO (03) Create a MutableLiveData variable tonight for one SleepNight.
+//    private var viewModelJob = Job()
+//
+//    override fun onCleared() {
+//        super.onCleared()
+//        viewModelJob.cancel()
+//    }
+//
+    // TODO (02) Define uiScope for coroutines.
 
-    //TODO (04) Define a variable, nights. Then getAllNights() from the database
-    //and assign to the nights variable.
+//    private val uiScope = CoroutineScope(Dispatchers.Main + viewModelJob)
 
-    //TODO (05) In an init block, initializeTonight(), and implement it to launch a coroutine
-    //to getTonightFromDatabase().
+    // TODO (03) Create a MutableLiveData variable tonight for one SleepNight.
 
-    //TODO (06) Implement getTonightFromDatabase()as a suspend function.
+    private var tonight = MutableLiveData<SleepNight?>()
 
-    //TODO (07) Implement the click handler for the Start button, onStartTracking(), using
-    //coroutines. Define the suspend function insert(), to insert a new night into the database.
+    // TODO (04) Define a variable, nights. Then getAllNights() from the database
+    //  and assign to the nights variable.
 
-    //TODO (08) Create onStopTracking() for the Stop button with an update() suspend function.
+    private val nights: LiveData<List<SleepNight>> = database.getAllNights()
 
-    //TODO (09) For the Clear button, created onClear() with a clear() suspend function.
+    // TODO (05) In an init block, initializeTonight(), and implement it to launch a coroutine
+    //  to getTonightFromDatabase().
 
-    //TODO (12) Transform nights into a nightsString using formatNights().
+    init {
+        initializeTonight()
+    }
+
+    private fun initializeTonight() {
+        viewModelScope.launch {
+            tonight.value = getTonightFromDatabase()
+        }
+    }
+
+    // TODO (06) Implement getTonightFromDatabase() as a suspend function.
+
+    private suspend fun getTonightFromDatabase(): SleepNight? {
+        var night = database.getTonight()
+        if (night?.endTimeMilli != night?.startTimeMilli) {
+            night = null
+        }
+        return night
+    }
+
+    // TODO (07) Implement the click handler for the Start button, onStartTracking(), using
+    //  coroutines. Define the suspend function insert(), to insert a new night into the database.
+
+    fun onStartTracking() {
+        viewModelScope.launch {
+            val newNight = SleepNight()
+            insert(newNight)
+            tonight.value = getTonightFromDatabase()
+        }
+    }
+
+    private suspend fun insert(night: SleepNight) {
+        database.insert(night)
+    }
+
+    // TODO (08) Create onStopTracking() for the Stop button with an update() suspend function.
+
+    fun onStopTracking() {
+        viewModelScope.launch {
+            val oldNight = tonight.value ?: return@launch
+            oldNight.endTimeMilli = System.currentTimeMillis()
+            update(oldNight)
+        }
+    }
+
+    private suspend fun update(night: SleepNight) {
+        database.update(night)
+    }
+
+    // TODO (09) For the Clear button, created onClear() with a clear() suspend function.
+
+    fun onClear() {
+        viewModelScope.launch {
+            clear()
+            tonight.value = null
+        }
+    }
+
+    private suspend fun clear() {
+        database.clear()
+    }
+
+    // TODO (12) Transform nights into a nightsString using formatNights().
+
+    val nightString = Transformations.map(nights) { nights ->
+        formatNights(nights, application.resources)
+    }
 
 }
 
